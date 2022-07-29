@@ -1,0 +1,75 @@
+version: '3.3'
+
+services:
+
+  grafana:
+    image: grafana/grafana:7.0.1
+    ports:
+      - 3000
+    networks:
+      - public
+    environment:
+      - GF_SECURITY_ADMIN_USER=${MONITOR_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${MONITOR_ADMIN_HASHED_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 64M
+      labels:
+          - traefik.enable=true
+          - traefik.docker.network=public
+          - traefik.constraint-label=public
+          - traefik.http.routers.monitor.rule=Host(`${MONITOR_DOMAIN?Variable not set}`)
+          - traefik.http.routers.monitor.entrypoints=http
+          - traefik.http.middlewares.monitor.redirectscheme.scheme=https
+          - traefik.http.middlewares.monitor.redirectscheme.permanent=true
+          - traefik.http.routers.monitor-secured.rule=Host(`${MONITOR_DOMAIN?Variable not set}`)
+          - traefik.http.routers.monitor-secured.entrypoints=https
+          - traefik.http.routers.monitor-secured.tls.certresolver=le
+          - traefik.http.services.monitor-secured.loadbalancer.server.port=3000
+    volumes:
+      - monitor:/var/lib/grafana
+  
+  influxdb:
+    image: influxdb:1.8.0
+    ports:
+      - 8086
+    networks:
+      - public
+      - shiny-net
+    deploy:
+      resources:
+        reservations:
+          cpus: '0.3'
+          memory: 128M
+        limits:
+          cpus: '0.6'
+          memory: 512M
+      placement:
+        constraints:
+          - node.role==manager
+    environment:
+      INFLUXDB_DB: shinyproxy_usagestats # this need to match the database specified in application.yml
+      # INFLUXDB_ADMIN_USER: admin
+      # INFLUXDB_ADMIN_PASSWORD: admin
+      # INFLUXDB_HTTP_AUTH_ENABLED: "true" # need to delete volume if change the database environment
+    volumes:
+        - influxdb:/var/lib/influxdb
+
+networks:
+  public:
+    external: true
+  shiny-net:
+    external: true
+
+volumes:
+  monitor:
+  influxdb:
