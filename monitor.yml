@@ -1,16 +1,17 @@
 version: '3.3'
-
 services:
-
   grafana:
     image: grafana/grafana:7.0.1
     ports:
       - 3000
     networks:
       - public
+    secrets:
+      - MONITOR_ADMIN_USER
+      - MONITOR_ADMIN_PASSWORD
     environment:
-      - GF_SECURITY_ADMIN_USER=${MONITOR_ADMIN_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${MONITOR_ADMIN_HASHED_PASSWORD:-admin}
+      - GF_SECURITY_ADMIN_USER__FILE=/run/secrets/MONITOR_ADMIN_USER
+      - GF_SECURITY_ADMIN_PASSWORD__FILE=/run/secrets/MONITOR_ADMIN_PASSWORD
       - GF_USERS_ALLOW_SIGN_UP=false
     deploy:
       mode: replicated
@@ -27,17 +28,16 @@ services:
           - traefik.enable=true
           - traefik.docker.network=public
           - traefik.constraint-label=public
-          - traefik.http.routers.monitor.rule=Host(`${MONITOR_DOMAIN?Variable not set}`)
-          - traefik.http.routers.monitor.entrypoints=http
-          - traefik.http.middlewares.monitor.redirectscheme.scheme=https
-          - traefik.http.middlewares.monitor.redirectscheme.permanent=true
-          - traefik.http.routers.monitor-secured.rule=Host(`${MONITOR_DOMAIN?Variable not set}`)
-          - traefik.http.routers.monitor-secured.entrypoints=https
-          - traefik.http.routers.monitor-secured.tls.certresolver=le
-          - traefik.http.services.monitor-secured.loadbalancer.server.port=3000
+          - traefik.http.routers.grafana.rule=Host(`${MONITOR_DOMAIN?Variable not set}`)
+          - traefik.http.routers.grafana.entrypoints=http
+          - traefik.http.middlewares.grafana.redirectscheme.scheme=https
+          - traefik.http.middlewares.grafana.redirectscheme.permanent=true
+          - traefik.http.routers.grafana-secured.rule=Host(`${MONITOR_DOMAIN?Variable not set}`)
+          - traefik.http.routers.grafana-secured.entrypoints=https
+          - traefik.http.routers.grafana-secured.tls.certresolver=le
+          - traefik.http.services.grafana-secured.loadbalancer.server.port=3000
     volumes:
-      - monitor:/var/lib/grafana
-  
+      - grafana:/var/lib/grafana
   influxdb:
     image: influxdb:1.8.0
     ports:
@@ -63,13 +63,16 @@ services:
       # INFLUXDB_HTTP_AUTH_ENABLED: "true" # need to delete volume if change the database environment
     volumes:
         - influxdb:/var/lib/influxdb
-
 networks:
   public:
     external: true
   shiny-net:
     external: true
-
+secrets:
+  MONITOR_ADMIN_USER:
+    external: true
+  MONITOR_ADMIN_PASSWORD:
+    external: true
 volumes:
-  monitor:
+  grafana:
   influxdb:
